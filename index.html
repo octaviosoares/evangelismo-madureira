@@ -3,7 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Controle Financeiro - Evangelismo Madureira/RJ</title>
+    <title>Dashboard Evangelismo Madureira/RJ</title>
+    <meta name="description" content="Dashboard Evangelismo Madureira/RJ - Controle Financeiro Oficial">
+    
+    <!-- Metatags Open Graph para compartilhamento perfeito no WhatsApp / Redes Sociais -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://octaviosoares.github.io/evangelismo-madureira/">
+    <meta property="og:title" content="Dashboard Evangelismo Madureira/RJ">
+    <meta property="og:description" content="Controle Financeiro Oficial - Evangelismo Madureira/RJ">
+    <meta property="og:site_name" content="Dashboard Evangelismo Madureira/RJ">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Dashboard Evangelismo Madureira/RJ">
+    <meta name="twitter:description" content="Controle Financeiro Oficial - Evangelismo Madureira/RJ">
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {
@@ -15,11 +27,13 @@
             --text-secondary: #9ca3af;
             --text-muted: #6b7280;
             --accent-green: #10b981;
-            --accent-green-soft: rgba(16, 185, 129, 0.15);
+            --accent-green-soft: rgba(168, 85, 247, 0.15);
             --accent-red: #ef4444;
             --accent-red-soft: rgba(239, 68, 68, 0.15);
             --accent-blue: #3b82f6;
             --accent-blue-soft: rgba(59, 130, 246, 0.15);
+            --accent-purple: #a855f7;
+            --accent-purple-soft: rgba(168, 85, 247, 0.18);
             --border-color: #222b3d;
             --radius-lg: 16px;
             --radius-md: 10px;
@@ -40,6 +54,13 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+            max-width: 100vw;
+            position: relative;
+        }
+
         body {
             background-color: var(--bg-color);
             color: var(--text-primary);
@@ -53,6 +74,80 @@
             body {
                 max-width: 1120px;
                 padding: 28px 28px 60px 28px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 12px 12px 90px 12px;
+                max-width: 100vw;
+                overflow-x: hidden;
+            }
+
+            header {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 12px !important;
+            }
+
+            .brand-area {
+                width: 100% !important;
+            }
+
+            .brand-area h1 {
+                font-size: 1.25rem !important;
+            }
+
+            .header-links {
+                width: 100% !important;
+                display: flex !important;
+                flex-wrap: wrap !important;
+                gap: 6px !important;
+            }
+
+            .header-actions {
+                width: 100% !important;
+                flex-direction: row !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+            }
+
+            .header-actions .btn-row {
+                display: flex !important;
+                gap: 6px !important;
+            }
+
+            .week-badge {
+                font-size: 0.72rem !important;
+                padding: 4px 8px !important;
+            }
+
+            .filter-tabs {
+                gap: 4px !important;
+                padding: 3px !important;
+            }
+
+            .filter-tab {
+                padding: 7px 3px !important;
+                font-size: 0.72rem !important;
+            }
+
+            .filter-controls {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 8px !important;
+            }
+
+            .filter-input, .filter-select {
+                width: 100% !important;
+                min-width: 0 !important;
+            }
+
+            .kpi-container {
+                grid-template-columns: 1fr !important;
+                gap: 10px !important;
             }
         }
 
@@ -270,6 +365,7 @@
         .kpi-card.blue::before { background: var(--accent-blue); }
         .kpi-card.green::before { background: var(--accent-green); }
         .kpi-card.red::before { background: var(--accent-red); }
+        .kpi-card.purple::before { background: var(--accent-purple); }
 
         .kpi-card h3 {
             font-size: 0.78rem;
@@ -293,6 +389,7 @@
         .kpi-card.green .value { color: var(--accent-green); }
         .kpi-card.red .value { color: var(--accent-red); }
         .kpi-card.blue .value { color: var(--accent-blue); }
+        .kpi-card.purple .value { color: #c084fc; }
 
         /* SECTION TITLES */
         .section-header {
@@ -907,10 +1004,10 @@
             <div id="kpi-saidas" class="value">R$ 0,00</div>
             <div id="kpi-saidas-sub" class="kpi-sub">0 lançamentos de saída</div>
         </div>
-        <div class="kpi-card blue">
-            <h3>Resultado do Mês</h3>
-            <div id="kpi-saldo" class="value">R$ 0,00</div>
-            <div id="kpi-saldo-sub" class="kpi-sub">Entradas - Saídas</div>
+        <div class="kpi-card purple" style="border-color: rgba(168, 85, 247, 0.35);">
+            <h3 style="color: #d8b4fe;">Saldo do Período</h3>
+            <div id="kpi-saldo" class="value" style="color: #c084fc;">R$ 0,00</div>
+            <div id="kpi-saldo-sub" class="kpi-sub">Filtro selecionado</div>
         </div>
     </div>
 
@@ -1713,7 +1810,11 @@
                 elSaldoAnteriorSub.textContent = subSaldoAnterior;
             }
 
-            document.getElementById("kpi-saldo").textContent = formatarMoeda(saldoPeriodo);
+            const elSaldoPeriodo = document.getElementById("kpi-saldo");
+            if (elSaldoPeriodo) {
+                elSaldoPeriodo.textContent = formatarMoeda(saldoPeriodo);
+                elSaldoPeriodo.style.color = saldoPeriodo >= 0 ? "#c084fc" : "var(--accent-red)";
+            }
             document.getElementById("kpi-saldo-sub").textContent = `Filtro atual: ${filtradas.length} mov.`;
             document.getElementById("kpi-entradas").textContent = formatarMoeda(totalEntradas);
             document.getElementById("kpi-entradas-sub").textContent = `${qtdEntradas} lançamento(s) no período`;

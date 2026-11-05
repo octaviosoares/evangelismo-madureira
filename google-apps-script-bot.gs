@@ -79,12 +79,13 @@ function processarMensagemTelegram(conteudo) {
       `• \`Saída 30 refrigerante PIX\`\n` +
       `• \`Entrada 150 oferta culto dinheiro\`\n\n` +
       `💰 *Consultar Saldo:*\n` +
-      `• Envie \`/saldo\` para ver o saldo total e do mês!\n\n` +
+      `• Envie \`/saldo\` para ver o saldo anterior, resultado do mês e total!\n\n` +
       `🗑️ *Como remover da planilha (Mês Atual):*\n` +
       `• \`exclua a linha 3\` (apaga a linha 3 do mês atual)\n` +
       `• \`/desfazer\` (apaga o último lançamento feito)\n\n` +
       `📸 *Comprovante:* Envie a foto com a legenda acima!\n\n` +
-      `📊 *Dashboard:* https://octaviosoares.github.io/evangelismo-madureira/`
+      `📊 [Dashboard Evangelismo Madureira/RJ](https://octaviosoares.github.io/evangelismo-madureira/)\n` +
+      `📑 [Planilha Controle Financeiro - Evangelismo](https://docs.google.com/spreadsheets/d/1Im_dY58z0tP7rOhLVFy5xWTAg19CV27v8X_XfTOj2zI/edit)`
     );
     return;
   }
@@ -141,7 +142,8 @@ function processarMensagemTelegram(conteudo) {
       `💵 *Resultado do Mês:* *${resultadoMes >= 0 ? "+" : ""}${formatarMoedaLocal(resultadoMes)}* (${qtdMovMes} lançamentos)\n\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `🏦 *SALDO TOTAL DO CAIXA:* *${formatarMoedaLocal(saldoTotalCaixa)}*\n\n` +
-      `📊 [Abrir Dashboard Completo](https://octaviosoares.github.io/evangelismo-madureira/)`
+      `📊 [Dashboard Evangelismo Madureira/RJ](https://octaviosoares.github.io/evangelismo-madureira/)\n` +
+      `📑 [Planilha Controle Financeiro - Evangelismo](https://docs.google.com/spreadsheets/d/1Im_dY58z0tP7rOhLVFy5xWTAg19CV27v8X_XfTOj2zI/edit)`
     );
     return;
   }
@@ -235,7 +237,7 @@ function processarMensagemTelegram(conteudo) {
     `📅 *Aba:* ${res.aba} • ${res.semana}\n` +
     `🏦 *Saldo Total do Caixa:* *${saldoAtualFmt}*\n` +
     (linkComprovante ? `📎 *Comprovante:* [Ver no Drive](${linkComprovante})\n` : "") +
-    `\n📊 [Abrir Dashboard](https://octaviosoares.github.io/evangelismo-madureira/)`
+    `\n📊 [Dashboard Evangelismo Madureira/RJ](https://octaviosoares.github.io/evangelismo-madureira/)`
   );
 }
 
