@@ -499,15 +499,41 @@ function atualizarLinhaNaPlanilha(aba, linha, subitem, tipo, modalidade, formaPa
 /**
  * Grava na aba mensal da planilha
  */
+/**
+ * Obtém a aba do mês ou cria uma nova duplicando a aba existente com todas as formatações,
+ * cores, fórmulas automáticas e cabeçalhos intactos.
+ */
+function obterOuCriarAbaDoMes(ss, nomeAba) {
+  let sheet = ss.getSheetByName(nomeAba);
+  if (sheet) return sheet;
+
+  const sheets = ss.getSheets();
+  if (sheets.length > 0) {
+    // Usa a primeira aba como modelo completo
+    const modelo = sheets[0];
+    sheet = modelo.copyTo(ss).setName(nomeAba);
+    ss.setActiveSheet(sheet);
+    ss.moveActiveSheet(1); // Deixa o mês mais recente na primeira aba
+
+    // Limpa apenas os dados de lançamentos anteriores (Data em A, e D:J)
+    // Mantendo: Cabeçalhos, Fórmulas de Dia da Semana (B) e Semana Oficial (C), e Resumo Geral (L:M)
+    const lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      sheet.getRange(2, 1, lastRow - 1, 1).clearContent();
+      sheet.getRange(2, 4, lastRow - 1, 7).clearContent();
+    }
+  } else {
+    sheet = ss.insertSheet(nomeAba, 0);
+  }
+  return sheet;
+}
+
 function registrarLancamentoNaPlanilha(item) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const dataObj = item.dataObj || new Date();
   const nomeAba = `${MESES_NOMES[dataObj.getMonth()]} ${dataObj.getFullYear()}`;
 
-  let sheet = ss.getSheetByName(nomeAba);
-  if (!sheet) {
-    sheet = ss.insertSheet(nomeAba, 0);
-  }
+  let sheet = obterOuCriarAbaDoMes(ss, nomeAba);
 
   const diaSemana = DIAS_SEMANA[dataObj.getDay()];
   const semana = calcularSemanaOficial(dataObj);
