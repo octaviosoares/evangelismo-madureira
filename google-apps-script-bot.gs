@@ -170,9 +170,9 @@ function interpretarTextoLancamento(texto) {
   else if (t.includes("proposito") || t.includes("propósito") || t.includes("campanha") || t.includes("oracao") || t.includes("oração")) modalidade = "Propósito";
   else if (t.includes("evangelismo") || t.includes("folheto") || t.includes("uber") || t.includes("lanche") || t.includes("refrigerante") || t.includes("agua")) modalidade = "Evangelismo";
 
-  // Forma de pagamento
-  let formaPagamento = "PIX";
-  if (t.includes("dinheiro")) formaPagamento = "Dinheiro";
+  // Forma de pagamento (Padrão: Dinheiro, a menos que mencione pix, cartao, etc.)
+  let formaPagamento = "Dinheiro";
+  if (t.includes("pix")) formaPagamento = "PIX";
   else if (t.includes("debito") || t.includes("débito")) formaPagamento = "Cartão de Débito";
   else if (t.includes("credito") || t.includes("crédito")) formaPagamento = "Cartão de Crédito";
   else if (t.includes("transferencia") || t.includes("transferência")) formaPagamento = "Transferência";
