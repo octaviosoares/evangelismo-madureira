@@ -90,13 +90,18 @@ function processarMensagemTelegram(conteudo) {
     return;
   }
 
-  // Consulta de Saldo Atual (/saldo ou saldo)
+  // Consulta de Saldo / Valor Atual (/saldo, /valor, /caixa)
   if (
     comandoLimpo === "/saldo" ||
     comandoLimpo === "saldo" ||
     comandoLimpo === "saldo total" ||
     comandoLimpo === "ver saldo" ||
-    comandoLimpo === "qual o saldo"
+    comandoLimpo === "qual o saldo" ||
+    comandoLimpo === "/valor" ||
+    comandoLimpo === "valor" ||
+    comandoLimpo === "/caixa" ||
+    comandoLimpo === "caixa" ||
+    comandoLimpo === "quanto tem"
   ) {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const dataAtual = new Date();
