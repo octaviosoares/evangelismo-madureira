@@ -77,11 +77,57 @@ function processarMensagemTelegram(conteudo) {
       `📌 *Como lançar:*\n` +
       `• \`Saída 30 refrigerante PIX\`\n` +
       `• \`Entrada 150 oferta culto dinheiro\`\n\n` +
+      `💰 *Consultar Saldo:*\n` +
+      `• Envie \`/saldo\` para ver o saldo total e do mês!\n\n` +
       `🗑️ *Como remover da planilha (Mês Atual):*\n` +
       `• \`exclua a linha 3\` (apaga a linha 3 do mês atual)\n` +
       `• \`/desfazer\` (apaga o último lançamento feito)\n\n` +
       `📸 *Comprovante:* Envie a foto com a legenda acima!\n\n` +
       `📊 *Dashboard:* https://octaviosoares.github.io/evangelismo-madureira/`
+    );
+    return;
+  }
+
+  // Consulta de Saldo Atual (/saldo ou saldo)
+  if (texto === "/saldo" || texto === "saldo") {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const dataAtual = new Date();
+    const nomeAbaAtual = `${MESES_NOMES[dataAtual.getMonth()]} ${dataAtual.getFullYear()}`;
+    const sheet = ss.getSheetByName(nomeAbaAtual);
+
+    let entMes = 0;
+    let saiMes = 0;
+    let qtdMovMes = 0;
+
+    if (sheet) {
+      const last = sheet.getLastRow();
+      if (last > 1) {
+        const vals = sheet.getRange(2, 4, last - 1, 4).getValues();
+        vals.forEach((r) => {
+          const v = typeof r[3] === "number" ? r[3] : parseFloat(String(r[3]).replace(/[R$\s.]/g, "").replace(",", ".")) || 0;
+          if (v > 0) {
+            qtdMovMes++;
+            if (r[0] === "Entrada") entMes += v;
+            else if (r[0] === "Saída") saiMes += v;
+          }
+        });
+      }
+    }
+
+    const saldoMes = entMes - saiMes;
+    const saldoGeral = calcularSaldoGeral(ss);
+    const formatarMoedaLocal = (val) => val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+    enviarMensagemTelegram(
+      chatId,
+      `🏦 *SITUAÇÃO DO CAIXA*\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `💰 *Saldo Total Acumulado:* *${formatarMoedaLocal(saldoGeral)}*\n\n` +
+      `📅 *Mês Atual (${nomeAbaAtual}):*\n` +
+      `🟢 Entradas: *+${formatarMoedaLocal(entMes)}*\n` +
+      `🔴 Saídas: *-${formatarMoedaLocal(saiMes)}*\n` +
+      `💵 Saldo do Mês: *${formatarMoedaLocal(saldoMes)}* (${qtdMovMes} lançamentos)\n\n` +
+      `📊 [Abrir Dashboard Completo](https://octaviosoares.github.io/evangelismo-madureira/)`
     );
     return;
   }
@@ -487,6 +533,7 @@ function registrarLancamentoNaPlanilha(item) {
     item.comprovanteUrl || ""
   ]]);
   sheet.getRange(targetRow, 7).setNumberFormat("R$ #,##0.00");
+  sheet.getRange(targetRow, 1, 1, 10).setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
 
   // Garante bloco de RESUMO GERAL na aba
   sheet.getRange("L1:M4").setValues([
