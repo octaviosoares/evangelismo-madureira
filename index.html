@@ -883,19 +883,19 @@
     </section>
 
     <!-- KPIs -->
-    <div class="kpi-container" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+    <div class="kpi-container" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
         <div class="kpi-card blue" style="background: linear-gradient(135deg, rgba(30, 58, 138, 0.3) 0%, rgba(17, 24, 39, 1) 100%); border-color: rgba(59, 130, 246, 0.4);">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="color: #60a5fa; font-weight: 700;">💰 Saldo Total do Caixa</h3>
+                <h3 style="color: #60a5fa; font-weight: 700;">🏦 Saldo Total do Caixa</h3>
                 <span style="font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; background: rgba(59, 130, 246, 0.2); color: #93c5fd;">Geral Acumulado</span>
             </div>
             <div id="kpi-saldo-geral" class="value" style="font-size: 1.85rem; color: #60a5fa; margin: 4px 0;">R$ 0,00</div>
             <div class="kpi-sub" style="color: #9ca3af;">Saldo real de todo o ministério</div>
         </div>
         <div class="kpi-card blue">
-            <h3>Saldo do Período</h3>
-            <div id="kpi-saldo" class="value">R$ 0,00</div>
-            <div id="kpi-saldo-sub" class="kpi-sub">Filtro selecionado</div>
+            <h3>💰 Saldo Anterior</h3>
+            <div id="kpi-saldo-anterior" class="value">R$ 0,00</div>
+            <div id="kpi-saldo-anterior-sub" class="kpi-sub">Transportado do mês anterior</div>
         </div>
         <div class="kpi-card green">
             <h3>Total de Entradas</h3>
@@ -906,6 +906,11 @@
             <h3>Total de Saídas</h3>
             <div id="kpi-saidas" class="value">R$ 0,00</div>
             <div id="kpi-saidas-sub" class="kpi-sub">0 lançamentos de saída</div>
+        </div>
+        <div class="kpi-card blue">
+            <h3>Resultado do Mês</h3>
+            <div id="kpi-saldo" class="value">R$ 0,00</div>
+            <div id="kpi-saldo-sub" class="kpi-sub">Entradas - Saídas</div>
         </div>
     </div>
 
@@ -1644,10 +1649,68 @@
                 return t.tipo === "Entrada" ? acc + v : acc - v;
             }, 0);
 
+            // Cálculo do Saldo Anterior (transações antes do início do filtro selecionado)
+            let saldoAnterior = 0;
+            let subSaldoAnterior = "Início do histórico";
+
+            if (modoFiltro === "mes") {
+                const mesSel = document.getElementById("filtro-mes") ? document.getElementById("filtro-mes").value : "";
+                if (mesSel) {
+                    const datasDoMes = transacoes.filter((t) => t.aba === mesSel).map((t) => t.data).filter(Boolean).sort();
+                    const menorData = datasDoMes.length > 0 ? datasDoMes[0] : null;
+                    if (menorData) {
+                        const inicioMesStr = menorData.slice(0, 7) + "-01";
+                        saldoAnterior = transacoes
+                            .filter((t) => t.data && t.data < inicioMesStr)
+                            .reduce((acc, t) => {
+                                const v = Number(t.valor) || 0;
+                                return t.tipo === "Entrada" ? acc + v : acc - v;
+                            }, 0);
+                        subSaldoAnterior = `Transportado até início de ${mesSel}`;
+                    }
+                }
+            } else if (modoFiltro === "periodo") {
+                const dataIni = document.getElementById("filtro-data-inicio") ? document.getElementById("filtro-data-inicio").value : "";
+                if (dataIni) {
+                    saldoAnterior = transacoes
+                        .filter((t) => t.data && t.data < dataIni)
+                        .reduce((acc, t) => {
+                            const v = Number(t.valor) || 0;
+                            return t.tipo === "Entrada" ? acc + v : acc - v;
+                        }, 0);
+                    subSaldoAnterior = `Até ${formatarDataBR(dataIni)}`;
+                }
+            } else if (modoFiltro === "semana") {
+                const semanaSel = document.getElementById("filtro-semana") ? document.getElementById("filtro-semana").value : "";
+                if (semanaSel) {
+                    const datasDaSemana = transacoes.filter((t) => t.semana === semanaSel).map((t) => t.data).filter(Boolean).sort();
+                    const menorData = datasDaSemana.length > 0 ? datasDaSemana[0] : null;
+                    if (menorData) {
+                        saldoAnterior = transacoes
+                            .filter((t) => t.data && t.data < menorData)
+                            .reduce((acc, t) => {
+                                const v = Number(t.valor) || 0;
+                                return t.tipo === "Entrada" ? acc + v : acc - v;
+                            }, 0);
+                        subSaldoAnterior = "Transportado para esta semana";
+                    }
+                }
+            }
+
             const elSaldoGeral = document.getElementById("kpi-saldo-geral");
             if (elSaldoGeral) {
                 elSaldoGeral.textContent = formatarMoeda(saldoGeral);
                 elSaldoGeral.style.color = saldoGeral >= 0 ? "var(--accent-green)" : "var(--accent-red)";
+            }
+
+            const elSaldoAnterior = document.getElementById("kpi-saldo-anterior");
+            const elSaldoAnteriorSub = document.getElementById("kpi-saldo-anterior-sub");
+            if (elSaldoAnterior) {
+                elSaldoAnterior.textContent = formatarMoeda(saldoAnterior);
+                elSaldoAnterior.style.color = saldoAnterior >= 0 ? "var(--accent-blue)" : "var(--accent-red)";
+            }
+            if (elSaldoAnteriorSub) {
+                elSaldoAnteriorSub.textContent = subSaldoAnterior;
             }
 
             document.getElementById("kpi-saldo").textContent = formatarMoeda(saldoPeriodo);

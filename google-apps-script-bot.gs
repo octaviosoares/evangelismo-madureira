@@ -105,6 +105,7 @@ function processarMensagemTelegram(conteudo) {
     let entMes = 0;
     let saiMes = 0;
     let qtdMovMes = 0;
+    let saldoAnterior = 0;
 
     if (sheet) {
       const last = sheet.getLastRow();
@@ -119,21 +120,27 @@ function processarMensagemTelegram(conteudo) {
           }
         });
       }
+      const valM2 = sheet.getRange("M2").getValue();
+      if (typeof valM2 === "number") {
+        saldoAnterior = valM2;
+      }
     }
 
-    const saldoMes = entMes - saiMes;
-    const saldoGeral = calcularSaldoGeral(ss);
+    const resultadoMes = entMes - saiMes;
+    const saldoTotalCaixa = saldoAnterior + resultadoMes;
     const formatarMoedaLocal = (val) => val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
     enviarMensagemTelegram(
       chatId,
       `🏦 *SITUAÇÃO DO CAIXA*\n` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `💰 *Saldo Total Acumulado:* *${formatarMoedaLocal(saldoGeral)}*\n\n` +
       `📅 *Mês Atual (${nomeAbaAtual}):*\n` +
-      `🟢 Entradas: *+${formatarMoedaLocal(entMes)}*\n` +
-      `🔴 Saídas: *-${formatarMoedaLocal(saiMes)}*\n` +
-      `💵 Saldo do Mês: *${formatarMoedaLocal(saldoMes)}* (${qtdMovMes} lançamentos)\n\n` +
+      `💰 *Saldo Anterior:* *${formatarMoedaLocal(saldoAnterior)}*\n` +
+      `🟢 *Entradas do Mês:* *+${formatarMoedaLocal(entMes)}*\n` +
+      `🔴 *Saídas do Mês:* *-${formatarMoedaLocal(saiMes)}*\n` +
+      `💵 *Resultado do Mês:* *${resultadoMes >= 0 ? "+" : ""}${formatarMoedaLocal(resultadoMes)}* (${qtdMovMes} lançamentos)\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🏦 *SALDO TOTAL DO CAIXA:* *${formatarMoedaLocal(saldoTotalCaixa)}*\n\n` +
       `📊 [Abrir Dashboard Completo](https://octaviosoares.github.io/evangelismo-madureira/)`
     );
     return;
@@ -384,16 +391,27 @@ function removerUltimoLancamentoDaPlanilha() {
 }
 
 /**
- * Garante as fórmulas do RESUMO GERAL (L1:M4) na aba
+ * Garante as fórmulas do RESUMO DO MÊS (L1:M6) na aba, incluindo Saldo Anterior
  */
-function garantirBlocoResumoGeral(sheet) {
+function garantirBlocoResumoGeral(sheet, nomeAbaAnterior) {
   try {
-    sheet.getRange("L1:M4").setValues([
-      ["RESUMO GERAL", ""],
-      ["Total Entradas", '=SUMIF(D2:D; "Entrada"; G2:G)'],
-      ["Total Saídas", '=SUMIF(D2:D; "Saída"; G2:G)'],
-      ["SALDO ATUAL", '=M2-M3']
+    const valAtualM2 = sheet.getRange("M2").getFormula() || sheet.getRange("M2").getValue();
+    let formulaSaldoAnterior = 0;
+    if (valAtualM2 !== "" && valAtualM2 !== null && valAtualM2 !== undefined) {
+      formulaSaldoAnterior = valAtualM2;
+    } else if (nomeAbaAnterior) {
+      formulaSaldoAnterior = `='${nomeAbaAnterior}'!M6`;
+    }
+
+    sheet.getRange("L1:M6").setValues([
+      ["RESUMO DO MÊS", ""],
+      ["Saldo Anterior", formulaSaldoAnterior],
+      ["Entradas do Mês", '=SUMIF(D2:D; "Entrada"; G2:G)'],
+      ["Saídas do Mês", '=SUMIF(D2:D; "Saída"; G2:G)'],
+      ["Resultado do Mês", '=M3-M4'],
+      ["SALDO FINAL", '=M2+M5']
     ]);
+    sheet.getRange("M2:M6").setNumberFormat("R$ #,##0.00");
   } catch (e) {}
 }
 
@@ -518,19 +536,23 @@ function obterOuCriarAbaDoMes(ss, nomeAba) {
   if (sheets.length > 0) {
     // Usa a primeira aba como modelo completo
     const modelo = sheets[0];
+    const nomeModelo = modelo.getName();
     sheet = modelo.copyTo(ss).setName(nomeAba);
     ss.setActiveSheet(sheet);
     ss.moveActiveSheet(1); // Deixa o mês mais recente na primeira aba
 
     // Limpa apenas os dados de lançamentos anteriores (Data em A, e D:J)
-    // Mantendo: Cabeçalhos, Fórmulas de Dia da Semana (B) e Semana Oficial (C), e Resumo Geral (L:M)
+    // Mantendo: Cabeçalhos, Fórmulas de Dia da Semana (B) e Semana Oficial (C)
     const lastRow = sheet.getLastRow();
     if (lastRow >= 2) {
       sheet.getRange(2, 1, lastRow - 1, 1).clearContent();
       sheet.getRange(2, 4, lastRow - 1, 7).clearContent();
     }
+    // Conecta o Saldo Anterior da nova aba ao Saldo Final (M6) da aba anterior
+    garantirBlocoResumoGeral(sheet, nomeModelo);
   } else {
     sheet = ss.insertSheet(nomeAba, 0);
+    garantirBlocoResumoGeral(sheet, null);
   }
   return sheet;
 }
@@ -570,13 +592,8 @@ function registrarLancamentoNaPlanilha(item) {
   sheet.getRange(targetRow, 1, 1, 9).setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
   sheet.getRange(targetRow, 10).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
 
-  // Garante bloco de RESUMO GERAL na aba
-  sheet.getRange("L1:M4").setValues([
-    ["RESUMO GERAL", ""],
-    ["Total Entradas", '=SUMIF(D2:D; "Entrada"; G2:G)'],
-    ["Total Saídas", '=SUMIF(D2:D; "Saída"; G2:G)'],
-    ["SALDO ATUAL", '=M2-M3']
-  ]);
+  // Garante bloco de RESUMO DO MÊS na aba (L1:M6)
+  garantirBlocoResumoGeral(sheet);
 
   SpreadsheetApp.flush();
 
