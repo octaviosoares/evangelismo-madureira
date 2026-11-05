@@ -73,15 +73,25 @@ function processarMensagemTelegram(conteudo) {
     enviarMensagemTelegram(
       chatId,
       `🙌 *Bot Financeiro - Evangelismo Madureira/RJ*\n\n` +
-      `Para registrar um lançamento, basta me mandar uma mensagem direta:\n\n` +
-      `📌 *Exemplos:*\n` +
+      `📌 *Como lançar:*\n` +
       `• \`Saída 30 refrigerante PIX\`\n` +
-      `• \`Entrada 150 oferta culto dinheiro\`\n` +
-      `• \`Saída 45 Uber para visita\`\n` +
-      `• \`Entrada 50 propósito campanha\`\n\n` +
-      `📸 *Comprovante:* Você também pode enviar a foto do comprovante com a legenda acima!\n\n` +
+      `• \`Entrada 150 oferta culto dinheiro\`\n\n` +
+      `🗑️ *Como cancelar/remover:*\n` +
+      `• Envie \`/desfazer\` ou \`/cancelar\` para apagar o último lançamento que você fez!\n\n` +
+      `📸 *Comprovante:* Envie a foto com a legenda acima!\n\n` +
       `📊 *Dashboard:* https://octaviosoares.github.io/evangelismo-madureira/`
     );
+    return;
+  }
+
+  // Comando para desfazer / remover o último lançamento
+  if (texto === "/desfazer" || texto === "/cancelar" || texto.toLowerCase() === "desfazer" || texto.toLowerCase() === "cancelar") {
+    const resRemover = removerUltimoLancamentoDaPlanilha();
+    if (resRemover.sucesso) {
+      enviarMensagemTelegram(chatId, `🗑️ *Último lançamento desfeito com sucesso!*\nLinha removida: _${resRemover.itemRemovido}_`);
+    } else {
+      enviarMensagemTelegram(chatId, `⚠️ ${resRemover.mensagem}`);
+    }
     return;
   }
 
@@ -220,6 +230,40 @@ function salvarArquivoTelegramNoDrive(fileId, modalidade) {
     Logger.log("Erro ao salvar no Drive: " + e.message);
     return "";
   }
+}
+
+/**
+ * Remove a última linha preenchida na aba do mês atual
+ */
+function removerUltimoLancamentoDaPlanilha() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const dataObj = new Date();
+  const nomeAba = `${MESES_NOMES[dataObj.getMonth()]} ${dataObj.getFullYear()}`;
+  const sheet = ss.getSheetByName(nomeAba);
+
+  if (!sheet) return { sucesso: false, mensagem: "Aba do mês não encontrada." };
+
+  const colA = sheet.getRange("A1:A500").getValues();
+  let ultimaLinha = -1;
+  for (let i = colA.length - 1; i >= 1; i--) {
+    if (colA[i][0] && String(colA[i][0]).trim() !== "") {
+      ultimaLinha = i + 1;
+      break;
+    }
+  }
+
+  // Não apagar os dois lançamentos iniciais fixos (linhas 2 e 3)
+  if (ultimaLinha <= 3) {
+    return { sucesso: false, mensagem: "Não há lançamentos recentes para desfazer." };
+  }
+
+  const valoresLinha = sheet.getRange(ultimaLinha, 1, 1, 10).getValues()[0];
+  const itemRemovido = `${valoresLinha[3]} R$ ${valoresLinha[6]} (${valoresLinha[5]})`;
+
+  // Apaga a linha inteira da planilha
+  sheet.deleteRow(ultimaLinha);
+
+  return { sucesso: true, itemRemovido: itemRemovido };
 }
 
 /**
