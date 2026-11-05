@@ -63,6 +63,7 @@ function processarMensagemTelegram(conteudo) {
   const chatId = msg.chat.id;
   const userId = msg.from ? msg.from.id : null;
   const texto = (msg.text || msg.caption || "").trim();
+  const comandoLimpo = texto.toLowerCase().replace(/@\w+/g, "").trim();
 
   // Verifica autorização de usuário
   if (USUARIOS_AUTORIZADOS.length > 0 && !USUARIOS_AUTORIZADOS.includes(userId)) {
@@ -70,7 +71,7 @@ function processarMensagemTelegram(conteudo) {
     return;
   }
 
-  if (texto === "/start" || texto === "/ajuda") {
+  if (comandoLimpo === "/start" || comandoLimpo === "/ajuda" || comandoLimpo === "ajuda") {
     enviarMensagemTelegram(
       chatId,
       `🙌 *Bot Financeiro - Evangelismo Madureira/RJ*\n\n` +
@@ -89,7 +90,13 @@ function processarMensagemTelegram(conteudo) {
   }
 
   // Consulta de Saldo Atual (/saldo ou saldo)
-  if (texto === "/saldo" || texto === "saldo") {
+  if (
+    comandoLimpo === "/saldo" ||
+    comandoLimpo === "saldo" ||
+    comandoLimpo === "saldo total" ||
+    comandoLimpo === "ver saldo" ||
+    comandoLimpo === "qual o saldo"
+  ) {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const dataAtual = new Date();
     const nomeAbaAtual = `${MESES_NOMES[dataAtual.getMonth()]} ${dataAtual.getFullYear()}`;
@@ -134,8 +141,8 @@ function processarMensagemTelegram(conteudo) {
 
   // 1. Comando específico para excluir uma linha informada do mês atual (ex: "exclua a linha 3", "apagar linha 3", "/excluir 3")
   const matchExcluirLinha =
-    texto.match(/(?:exclua|excluir|apagar|apague|deletar|delete|\/excluir|\/apagar|\/remover)\s+(?:a\s+)?linha\s*(\d+)/i) ||
-    texto.match(/^(?:\/excluir|\/apagar|\/remover)\s+(\d+)$/i);
+    comandoLimpo.match(/(?:exclua|excluir|apagar|apague|deletar|delete|\/excluir|\/apagar|\/remover)\s+(?:a\s+)?linha\s*(\d+)/i) ||
+    comandoLimpo.match(/^(?:\/excluir|\/apagar|\/remover)\s+(\d+)$/i);
 
   if (matchExcluirLinha) {
     const numLinha = parseInt(matchExcluirLinha[1], 10);
@@ -161,12 +168,12 @@ function processarMensagemTelegram(conteudo) {
 
   // 2. Comando geral para desfazer / remover o ÚLTIMO lançamento (ex: "/desfazer", "desfazer", "/cancelar")
   if (
-    texto === "/desfazer" ||
-    texto === "desfazer" ||
-    texto === "/cancelar" ||
-    texto === "cancelar" ||
-    texto === "/apagar" ||
-    texto === "apagar"
+    comandoLimpo === "/desfazer" ||
+    comandoLimpo === "desfazer" ||
+    comandoLimpo === "/cancelar" ||
+    comandoLimpo === "cancelar" ||
+    comandoLimpo === "/apagar" ||
+    comandoLimpo === "apagar"
   ) {
     const resRemover = removerUltimoLancamentoDaPlanilha();
     if (resRemover.sucesso) {
