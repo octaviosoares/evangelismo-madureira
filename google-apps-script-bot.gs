@@ -533,7 +533,9 @@ function registrarLancamentoNaPlanilha(item) {
     item.comprovanteUrl || ""
   ]]);
   sheet.getRange(targetRow, 7).setNumberFormat("R$ #,##0.00");
-  sheet.getRange(targetRow, 1, 1, 10).setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+  sheet.getRange(targetRow, 1, 1, 10).setVerticalAlignment("middle");
+  sheet.getRange(targetRow, 1, 1, 9).setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+  sheet.getRange(targetRow, 10).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
 
   // Garante bloco de RESUMO GERAL na aba
   sheet.getRange("L1:M4").setValues([
