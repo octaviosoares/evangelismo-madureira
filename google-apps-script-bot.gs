@@ -6,6 +6,7 @@
 
 const SPREADSHEET_ID = "1Im_dY58z0tP7rOhLVFy5xWTAg19CV27v8X_XfTOj2zI";
 const TELEGRAM_TOKEN = "9133687469:AAEp_jcHNbcfe2yoasZ00Q_C9GyRyPAZw1o";
+const ADMIN_PIN = "7845"; // PIN de segurança para gerenciar/excluir pelo Dashboard
 const USUARIOS_AUTORIZADOS = []; // Cole aqui seu ID do Telegram se quiser restringir, ou deixe [] aberto
 
 const DRIVE_FOLDER_ID = ""; // Opcional: ID da pasta no Drive para comprovantes
@@ -316,9 +317,13 @@ function garantirBlocoResumoGeral(sheet) {
 }
 
 /**
- * Exclui uma linha específica da planilha (solicitado pelo Dashboard)
+ * Exclui uma linha específica da planilha (solicitado pelo Dashboard com PIN)
  */
-function excluirLinhaDaPlanilha(aba, linha, subitem) {
+function excluirLinhaDaPlanilha(aba, linha, subitem, pin) {
+  if (String(pin).trim() !== ADMIN_PIN) {
+    return { sucesso: false, erro: "Acesso negado: PIN de administrador incorreto ou ausente." };
+  }
+
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const dataObj = new Date();
   const nomeAba = aba || `${MESES_NOMES[dataObj.getMonth()]} ${dataObj.getFullYear()}`;
@@ -367,9 +372,13 @@ function excluirLinhaDaPlanilha(aba, linha, subitem) {
 }
 
 /**
- * Atualiza campos de uma linha existente na planilha (Tipo, Modalidade, Forma de Pagamento)
+ * Atualiza campos de uma linha existente na planilha (Tipo, Modalidade, Forma de Pagamento com PIN)
  */
-function atualizarLinhaNaPlanilha(aba, linha, subitem, tipo, modalidade, formaPagamento) {
+function atualizarLinhaNaPlanilha(aba, linha, subitem, tipo, modalidade, formaPagamento, pin) {
+  if (String(pin).trim() !== ADMIN_PIN) {
+    return { sucesso: false, erro: "Acesso negado: PIN de administrador incorreto ou ausente." };
+  }
+
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const sheet = ss.getSheetByName(aba);
   if (!sheet) return { sucesso: false, erro: "Aba não encontrada" };
@@ -521,19 +530,23 @@ function doPost(e) {
       return HtmlService.createHtmlOutput("OK");
     }
 
-    // Ação: Excluir linha pelo dashboard
+    // Ação: Excluir linha pelo dashboard (requer PIN)
     if (postData.acao === "excluirLinha") {
-      const res = excluirLinhaDaPlanilha(postData.aba, postData.linha, postData.subitem);
+      const res = excluirLinhaDaPlanilha(postData.aba, postData.linha, postData.subitem, postData.pin);
       return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Ação: Atualizar campos da linha pelo dashboard
+    // Ação: Atualizar campos da linha pelo dashboard (requer PIN)
     if (postData.acao === "atualizarLinha") {
-      const res = atualizarLinhaNaPlanilha(postData.aba, postData.linha, postData.subitem, postData.tipo, postData.modalidade, postData.formaPagamento);
+      const res = atualizarLinhaNaPlanilha(postData.aba, postData.linha, postData.subitem, postData.tipo, postData.modalidade, postData.formaPagamento, postData.pin);
       return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Se for lançamento via API web normal
+    // Se for lançamento via API web do dashboard, valida PIN
+    if (String(postData.pin).trim() !== ADMIN_PIN) {
+      return ContentService.createTextOutput(JSON.stringify({ sucesso: false, erro: "Acesso negado: PIN de administrador incorreto ou ausente." })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     const res = registrarLancamentoNaPlanilha({
       dataObj: new Date(postData.data),
       tipo: postData.tipo,
@@ -557,13 +570,13 @@ function doGet(e) {
     const acao = p.acao;
 
     if (acao === "excluirLinha") {
-      const res = excluirLinhaDaPlanilha(p.aba, p.linha, p.subitem);
+      const res = excluirLinhaDaPlanilha(p.aba, p.linha, p.subitem, p.pin);
       return ContentService.createTextOutput(JSON.stringify(res))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
     if (acao === "atualizarLinha") {
-      const res = atualizarLinhaNaPlanilha(p.aba, p.linha, p.subitem, p.tipo, p.modalidade, p.formaPagamento);
+      const res = atualizarLinhaNaPlanilha(p.aba, p.linha, p.subitem, p.tipo, p.modalidade, p.formaPagamento, p.pin);
       return ContentService.createTextOutput(JSON.stringify(res))
         .setMimeType(ContentService.MimeType.JSON);
     }

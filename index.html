@@ -640,10 +640,67 @@
             font-weight: 800;
             box-shadow: var(--shadow-lg);
             cursor: pointer;
-            display: flex;
+            display: none; /* Só visível no modo admin */
             align-items: center;
             gap: 8px;
             z-index: 40;
+        }
+
+        /* ADMIN BADGE & PIN MODAL */
+        .badge-admin {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            background: #151d2f;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+        }
+
+        .badge-admin:hover {
+            border-color: #3b82f6;
+            color: var(--text-primary);
+        }
+
+        .badge-admin.admin-active {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.4);
+            color: #34d399;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+        }
+
+        .pin-input-box {
+            letter-spacing: 12px;
+            font-size: 1.8rem;
+            text-align: center;
+            font-weight: 800;
+            padding: 12px;
+            color: #60a5fa;
+            background: #090d16;
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius-md);
+            width: 100%;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .pin-input-box:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .pin-error-msg {
+            color: #ef4444;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+            margin-top: 10px;
+            display: none;
         }
 
         /* MODAL */
@@ -791,10 +848,15 @@
             </div>
         </div>
         <div class="header-actions">
-            <span id="current-week-badge" class="week-badge">Semana 45</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="current-week-badge" class="week-badge">Semana 45</span>
+                <button id="btn-admin-auth" class="badge-admin" onclick="acaoBotaoAdmin()" title="Alternar Modo de Acesso">
+                    <span id="admin-icon">🔒</span> <span id="admin-label">Acesso Líder</span>
+                </button>
+            </div>
             <div class="btn-row">
                 <button class="btn" onclick="sincronizarComPlanilha(false)" title="Buscar dados mais recentes da planilha">↻ Atualizar</button>
-                <button class="btn btn-primary" onclick="abrirModalLancamento()">+ Lançar</button>
+                <button id="btn-header-lancar" class="btn btn-primary" onclick="abrirModalLancamentoComAuth()" style="display:none;">+ Lançar</button>
             </div>
         </div>
     </header>
@@ -886,9 +948,9 @@
 
     <!-- LISTA DE MOVIMENTAÇÕES COM SETAS DE SELEÇÃO INLINE -->
     <div class="section-header">
-        <div class="section-title">Movimentações (<span id="count-movimentacoes">0</span>) — Altere Entrada/Saída ou Categoria direto nas setas</div>
+        <div class="section-title">Movimentações (<span id="count-movimentacoes">0</span>)</div>
         <div style="display:flex; gap:8px;">
-            <button class="btn" onclick="abrirModalLancamento()" style="padding: 5px 10px; font-size: 0.76rem;">+ Nova Linha</button>
+            <button id="btn-tabela-nova-linha" class="btn" onclick="abrirModalLancamentoComAuth()" style="display:none; padding: 5px 10px; font-size: 0.76rem;">+ Nova Linha</button>
             <button class="btn" onclick="exportarCSV()" style="padding: 5px 10px; font-size: 0.76rem;">⬇ Exportar .CSV</button>
         </div>
     </div>
@@ -897,7 +959,7 @@
     </div>
 
     <!-- BOTÃO FLUTUANTE -->
-    <button class="fab-button" onclick="abrirModalLancamento()">
+    <button id="fab-novo-lancamento" class="fab-button" onclick="abrirModalLancamentoComAuth()">
         + Novo Lançamento
     </button>
 
@@ -1007,12 +1069,132 @@
         </div>
     </div>
 
+    <!-- MODAL PIN ADMIN -->
+    <div class="modal-overlay" id="modal-pin-admin">
+        <div class="modal-card" style="max-width: 380px; text-align: center;">
+            <div class="modal-header" style="justify-content: center; position: relative;">
+                <h2 style="font-size: 1.15rem;">🔐 Acesso de Administrador</h2>
+                <button class="btn-close" onclick="fecharModalPin()" style="position: absolute; right: 0;">✕</button>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
+                Digite o PIN de 4 dígitos para gerenciar lançamentos, editar e excluir na planilha:
+            </p>
+            <form onsubmit="confirmarPinAdmin(event)">
+                <input type="password" id="input-pin-admin" class="pin-input-box" maxlength="4" pattern="\d{4}" inputmode="numeric" placeholder="••••" required autocomplete="off">
+                <div id="pin-error-alert" class="pin-error-msg">⚠️ PIN incorreto! Tente novamente.</div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="button" class="btn" style="flex: 1; justify-content: center;" onclick="fecharModalPin()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" style="flex: 1.5; justify-content: center; font-weight: 700;">Acessar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const SPREADSHEET_ID = "1Im_dY58z0tP7rOhLVFy5xWTAg19CV27v8X_XfTOj2zI";
         const SCRIPT_URL_PADRAO = "https://script.google.com/macros/s/AKfycbx-dYrPkbUn0l3vYs6KAewD_w5rTfrXlalhnSHvfZ8GPE7ol7uJLVMPHN_0VnjWoPJQzg/exec";
 
         function obterScriptUrl() {
             return localStorage.getItem("evangelismo_script_url") || SCRIPT_URL_PADRAO;
+        }
+
+        const PIN_ADMIN_CORRETO = "7845";
+
+        function verificarAdmin() {
+            return localStorage.getItem("evangelismo_admin_pin") === PIN_ADMIN_CORRETO;
+        }
+
+        function atualizarUIAdmin() {
+            const isAdmin = verificarAdmin();
+            const btnAuth = document.getElementById("btn-admin-auth");
+            const btnHeaderLancar = document.getElementById("btn-header-lancar");
+            const fabLancar = document.getElementById("fab-novo-lancamento");
+            const btnTabelaLancar = document.getElementById("btn-tabela-nova-linha");
+
+            if (isAdmin) {
+                if (btnAuth) {
+                    btnAuth.classList.add("admin-active");
+                    document.getElementById("admin-icon").textContent = "👑";
+                    document.getElementById("admin-label").textContent = "Líder (Admin)";
+                    btnAuth.title = "Clique para sair do modo Administrador";
+                }
+                if (btnHeaderLancar) btnHeaderLancar.style.display = "inline-flex";
+                if (fabLancar) fabLancar.style.display = "flex";
+                if (btnTabelaLancar) btnTabelaLancar.style.display = "inline-flex";
+            } else {
+                if (btnAuth) {
+                    btnAuth.classList.remove("admin-active");
+                    document.getElementById("admin-icon").textContent = "🔒";
+                    document.getElementById("admin-label").textContent = "Acesso Líder";
+                    btnAuth.title = "Clique para digitar o PIN de Líder";
+                }
+                if (btnHeaderLancar) btnHeaderLancar.style.display = "none";
+                if (fabLancar) fabLancar.style.display = "none";
+                if (btnTabelaLancar) btnTabelaLancar.style.display = "none";
+            }
+        }
+
+        function acaoBotaoAdmin() {
+            if (verificarAdmin()) {
+                if (confirm("Você está no Modo Administrador (Líder).\nDeseja SAIR para o Modo Visitante (apenas leitura)?")) {
+                    localStorage.removeItem("evangelismo_admin_pin");
+                    atualizarUIAdmin();
+                    aplicarFiltros();
+                }
+            } else {
+                abrirModalPin();
+            }
+        }
+
+        let callbackAposPin = null;
+
+        function abrirModalPin(callback = null) {
+            callbackAposPin = callback;
+            const modal = document.getElementById("modal-pin-admin");
+            const input = document.getElementById("input-pin-admin");
+            const err = document.getElementById("pin-error-alert");
+            if (err) err.style.display = "none";
+            if (input) input.value = "";
+            if (modal) modal.classList.add("open");
+            setTimeout(() => input && input.focus(), 150);
+        }
+
+        function fecharModalPin() {
+            const modal = document.getElementById("modal-pin-admin");
+            if (modal) modal.classList.remove("open");
+            callbackAposPin = null;
+        }
+
+        function confirmarPinAdmin(e) {
+            if (e) e.preventDefault();
+            const input = document.getElementById("input-pin-admin");
+            const pinDigitado = input ? input.value.trim() : "";
+            const err = document.getElementById("pin-error-alert");
+
+            if (pinDigitado === PIN_ADMIN_CORRETO) {
+                localStorage.setItem("evangelismo_admin_pin", PIN_ADMIN_CORRETO);
+                fecharModalPin();
+                atualizarUIAdmin();
+                aplicarFiltros();
+
+                if (typeof callbackAposPin === "function") {
+                    callbackAposPin();
+                }
+            } else {
+                if (err) err.style.display = "block";
+                if (input) {
+                    input.value = "";
+                    input.focus();
+                }
+            }
+        }
+
+        function abrirModalLancamentoComAuth() {
+            if (!verificarAdmin()) {
+                abrirModalPin(() => abrirModalLancamento());
+                return;
+            }
+            abrirModalLancamento();
         }
 
         const MODALIDADES = ["Bonificação", "Evangelismo", "Gazofilácio", "Propósito"];
@@ -1180,6 +1362,7 @@
             popularOpcoesDeFiltro();
             aplicarFiltros();
             atualizarStatusSyncUI();
+            atualizarUIAdmin();
 
             // Sincroniza automaticamente ao abrir, ao voltar para a aba do navegador e a cada 30 segundos
             sincronizarComPlanilha(true);
@@ -1529,6 +1712,7 @@
                 return;
             }
 
+            const isAdmin = verificarAdmin();
             const ordenadas = [...lista].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
 
             container.innerHTML = ordenadas.map((t) => {
@@ -1540,9 +1724,38 @@
                     ? `<a href="${t.comprovanteUrl}" target="_blank" rel="noopener" class="badge badge-link">📎 Comprovante</a>`
                     : "";
 
-                const opcoesModalidades = MODALIDADES.map(
-                    (m) => `<option value="${m}" ${t.modalidade === m ? "selected" : ""}>${m}</option>`
-                ).join("");
+                let seletoresHtml = "";
+                if (isAdmin) {
+                    const opcoesModalidades = MODALIDADES.map(
+                        (m) => `<option value="${m}" ${t.modalidade === m ? "selected" : ""}>${m}</option>`
+                    ).join("");
+
+                    seletoresHtml = `
+                        <div class="chip-select-wrapper" title="Alterar Entrada ou Saída">
+                            <select class="chip-select ${isEntrada ? 'tipo-entrada' : 'tipo-saida'}" onchange="alterarCampoNaLinha('${t.id}', 'tipo', this.value)">
+                                <option value="Entrada" ${isEntrada ? "selected" : ""}>▲ Entrada</option>
+                                <option value="Saída" ${!isEntrada ? "selected" : ""}>▼ Saída</option>
+                            </select>
+                            <span class="chip-select-arrow">▾</span>
+                        </div>
+
+                        <div class="chip-select-wrapper" title="Alterar Categoria">
+                            <select class="chip-select cat-${t.modalidade}" onchange="alterarCampoNaLinha('${t.id}', 'modalidade', this.value)">
+                                ${opcoesModalidades}
+                            </select>
+                            <span class="chip-select-arrow">▾</span>
+                        </div>
+                    `;
+                } else {
+                    seletoresHtml = `
+                        <span class="badge ${isEntrada ? 'badge-entrada' : 'badge-saida'}">${isEntrada ? '▲ Entrada' : '▼ Saída'}</span>
+                        <span class="badge" style="color:${cfgCat.corHex}; border-color:${cfgCat.corHex}50;">${t.modalidade}</span>
+                    `;
+                }
+
+                const botaoExcluirHtml = isAdmin
+                    ? `<button class="btn-delete-item" onclick="removerLancamento('${t.id}')">Excluir</button>`
+                    : "";
 
                 return `
                     <div class="transaction-item">
@@ -1556,21 +1769,7 @@
                                 ${t.descricao ? `<p style="color: var(--text-muted); margin-top:2px;">${t.descricao}</p>` : ""}
 
                                 <div class="row-selectors">
-                                    <div class="chip-select-wrapper" title="Alterar Entrada ou Saída">
-                                        <select class="chip-select ${isEntrada ? 'tipo-entrada' : 'tipo-saida'}" onchange="alterarCampoNaLinha('${t.id}', 'tipo', this.value)">
-                                            <option value="Entrada" ${isEntrada ? "selected" : ""}>▲ Entrada</option>
-                                            <option value="Saída" ${!isEntrada ? "selected" : ""}>▼ Saída</option>
-                                        </select>
-                                        <span class="chip-select-arrow">▾</span>
-                                    </div>
-
-                                    <div class="chip-select-wrapper" title="Alterar Categoria">
-                                        <select class="chip-select cat-${t.modalidade}" onchange="alterarCampoNaLinha('${t.id}', 'modalidade', this.value)">
-                                            ${opcoesModalidades}
-                                        </select>
-                                        <span class="chip-select-arrow">▾</span>
-                                    </div>
-
+                                    ${seletoresHtml}
                                     <span class="badge">${t.semana}</span>
                                     ${linkHtml}
                                 </div>
@@ -1578,7 +1777,7 @@
                         </div>
                         <div class="trans-right">
                             <div class="trans-value ${classeTipo}">${sinal} ${formatarMoeda(Number(t.valor) || 0)}</div>
-                            <button class="btn-delete-item" onclick="removerLancamento('${t.id}')">Excluir</button>
+                            ${botaoExcluirHtml}
                         </div>
                     </div>
                 `;
@@ -1586,6 +1785,7 @@
         }
 
         async function alterarCampoNaLinha(id, campo, novoValor) {
+            if (!verificarAdmin()) return;
             const item = transacoes.find((t) => t.id === id);
             if (!item) return;
 
@@ -1604,6 +1804,7 @@
                     url.searchParams.set("tipo", item.tipo || "");
                     url.searchParams.set("modalidade", item.modalidade || "");
                     url.searchParams.set("formaPagamento", item.formaPagamento || "");
+                    url.searchParams.set("pin", PIN_ADMIN_CORRETO);
 
                     await fetch(url.toString(), { method: "GET", mode: "no-cors" });
                 } catch (e) {
@@ -1916,6 +2117,7 @@
                         method: "POST",
                         body: JSON.stringify({
                             ...novoItem,
+                            pin: PIN_ADMIN_CORRETO,
                             arquivoBase64,
                             arquivoNome,
                             arquivoMimeType
@@ -1942,6 +2144,11 @@
         }
 
         async function removerLancamento(id) {
+            if (!verificarAdmin()) {
+                abrirModalPin(() => removerLancamento(id));
+                return;
+            }
+
             const item = transacoes.find((t) => t.id === id);
             if (!item) return;
 
@@ -1963,6 +2170,7 @@
                     url.searchParams.set("aba", item.aba || "Novembro 2026");
                     url.searchParams.set("linha", item.linha || "");
                     url.searchParams.set("subitem", item.subitem || "");
+                    url.searchParams.set("pin", PIN_ADMIN_CORRETO);
 
                     await fetch(url.toString(), { method: "GET", mode: "no-cors" });
 
