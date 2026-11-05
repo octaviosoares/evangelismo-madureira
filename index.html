@@ -1009,6 +1009,12 @@
 
     <script>
         const SPREADSHEET_ID = "1Im_dY58z0tP7rOhLVFy5xWTAg19CV27v8X_XfTOj2zI";
+        const SCRIPT_URL_PADRAO = "https://script.google.com/macros/s/AKfycbx-dYrPkbUn0l3vYs6KAewD_w5rTfrXlalhnSHvfZ8GPE7ol7uJLVMPHN_0VnjWoPJQzg/exec";
+
+        function obterScriptUrl() {
+            return localStorage.getItem("evangelismo_script_url") || SCRIPT_URL_PADRAO;
+        }
+
         const MODALIDADES = ["Bonificação", "Evangelismo", "Gazofilácio", "Propósito"];
 
         const CONFIG_CATEGORIAS = {
@@ -1572,7 +1578,7 @@
                         </div>
                         <div class="trans-right">
                             <div class="trans-value ${classeTipo}">${sinal} ${formatarMoeda(Number(t.valor) || 0)}</div>
-                            <button class="btn-delete-item" onclick="removerLancamentoLocal('${t.id}')">Excluir</button>
+                            <button class="btn-delete-item" onclick="removerLancamento('${t.id}')">Excluir</button>
                         </div>
                     </div>
                 `;
@@ -1587,34 +1593,21 @@
             salvarDadosLocais();
             aplicarFiltros();
 
-            const payload = {
-                acao: "atualizarLinha",
-                aba: item.aba,
-                linha: item.linha,
-                tipo: item.tipo,
-                modalidade: item.modalidade,
-                formaPagamento: item.formaPagamento
-            };
-
-            // Tenta atualizar pelo servidor local autenticado
-            try {
-                await fetch("http://localhost:3000/api/planilha", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-                return;
-            } catch (e) {}
-
-            const scriptUrl = localStorage.getItem("evangelismo_script_url");
-            if (scriptUrl && item.aba && item.linha) {
+            const scriptUrl = obterScriptUrl();
+            if (scriptUrl && item.aba) {
                 try {
-                    await fetch(scriptUrl, {
-                        method: "POST",
-                        body: JSON.stringify(payload)
-                    });
+                    const url = new URL(scriptUrl);
+                    url.searchParams.set("acao", "atualizarLinha");
+                    url.searchParams.set("aba", item.aba);
+                    url.searchParams.set("linha", item.linha || "");
+                    url.searchParams.set("subitem", item.subitem || "");
+                    url.searchParams.set("tipo", item.tipo || "");
+                    url.searchParams.set("modalidade", item.modalidade || "");
+                    url.searchParams.set("formaPagamento", item.formaPagamento || "");
+
+                    await fetch(url.toString(), { method: "GET", mode: "no-cors" });
                 } catch (e) {
-                    console.warn("Aviso ao sincronizar linha:", e);
+                    console.warn("Aviso ao atualizar na planilha:", e);
                 }
             }
         }
@@ -1917,7 +1910,7 @@
                     }
                 } catch (e) {}
 
-                const scriptUrl = localStorage.getItem("evangelismo_script_url");
+                const scriptUrl = obterScriptUrl();
                 if (scriptUrl) {
                     const resp = await fetch(scriptUrl, {
                         method: "POST",
@@ -1948,12 +1941,41 @@
             }
         }
 
-        function removerLancamentoLocal(id) {
-            if (!confirm("Deseja remover este lançamento da visualização local?")) return;
+        async function removerLancamento(id) {
+            const item = transacoes.find((t) => t.id === id);
+            if (!item) return;
+
+            const valorTxt = formatarMoeda(Number(item.valor) || 0);
+            const nomeItem = item.subitem ? `"${item.subitem}" (${valorTxt})` : "este lançamento";
+            if (!confirm(`Deseja EXCLUIR definitivamente ${nomeItem} da planilha Google Sheets?`)) return;
+
+            // Remove imediatamente da interface para resposta instantânea
             transacoes = transacoes.filter((t) => t.id !== id);
             salvarDadosLocais();
             popularOpcoesDeFiltro();
             aplicarFiltros();
+
+            const scriptUrl = obterScriptUrl();
+            if (scriptUrl) {
+                try {
+                    const url = new URL(scriptUrl);
+                    url.searchParams.set("acao", "excluirLinha");
+                    url.searchParams.set("aba", item.aba || "Novembro 2026");
+                    url.searchParams.set("linha", item.linha || "");
+                    url.searchParams.set("subitem", item.subitem || "");
+
+                    await fetch(url.toString(), { method: "GET", mode: "no-cors" });
+
+                    // Sincroniza com a planilha após 1.5s para consolidar a lista oficial
+                    setTimeout(() => sincronizarComPlanilha(true), 1500);
+                } catch (err) {
+                    console.warn("Aviso ao excluir na planilha:", err);
+                }
+            }
+        }
+
+        function removerLancamentoLocal(id) {
+            removerLancamento(id);
         }
 
         function abrirModalConfig() {

@@ -295,7 +295,116 @@ function removerUltimoLancamentoDaPlanilha() {
   // Apaga a linha inteira da planilha
   sheet.deleteRow(ultimaLinha);
 
+  // Garante a integridade do bloco de RESUMO GERAL na aba
+  garantirBlocoResumoGeral(sheet);
+
   return { sucesso: true, itemRemovido: itemRemovido };
+}
+
+/**
+ * Garante as fórmulas do RESUMO GERAL (L1:M4) na aba
+ */
+function garantirBlocoResumoGeral(sheet) {
+  try {
+    sheet.getRange("L1:M4").setValues([
+      ["RESUMO GERAL", ""],
+      ["Total Entradas", '=SUMIF(D2:D; "Entrada"; G2:G)'],
+      ["Total Saídas", '=SUMIF(D2:D; "Saída"; G2:G)'],
+      ["SALDO ATUAL", '=M2-M3']
+    ]);
+  } catch (e) {}
+}
+
+/**
+ * Exclui uma linha específica da planilha (solicitado pelo Dashboard)
+ */
+function excluirLinhaDaPlanilha(aba, linha, subitem) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const dataObj = new Date();
+  const nomeAba = aba || `${MESES_NOMES[dataObj.getMonth()]} ${dataObj.getFullYear()}`;
+  const sheet = ss.getSheetByName(nomeAba);
+  if (!sheet) return { sucesso: false, erro: "Aba não encontrada" };
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return { sucesso: false, erro: "Planilha vazia" };
+
+  let linhaAlvo = parseInt(linha, 10);
+
+  // Se informou subitem, valida se a linha indicada ainda corresponde
+  if (subitem && linhaAlvo >= 2 && linhaAlvo <= lastRow) {
+    const valF = sheet.getRange(linhaAlvo, 6).getValue();
+    if (String(valF).trim().toLowerCase() !== String(subitem).trim().toLowerCase()) {
+      linhaAlvo = -1;
+    }
+  }
+
+  // Se não coincidiu pelo número, procura em toda a coluna F (Subitem)
+  if (linhaAlvo < 2 && subitem) {
+    const colF = sheet.getRange(2, 6, lastRow - 1, 1).getValues();
+    for (let i = 0; i < colF.length; i++) {
+      if (String(colF[i][0]).trim().toLowerCase() === String(subitem).trim().toLowerCase()) {
+        linhaAlvo = i + 2;
+        break;
+      }
+    }
+  }
+
+  if (linhaAlvo < 2 || linhaAlvo > lastRow) {
+    return { sucesso: false, erro: "Registro não encontrado para exclusão" };
+  }
+
+  const valores = sheet.getRange(linhaAlvo, 1, 1, 10).getValues()[0];
+  const itemRemovido = `${valores[3]} R$ ${valores[6]} (${valores[5]})`;
+
+  // Apaga a linha na planilha
+  sheet.deleteRow(linhaAlvo);
+
+  // Garante o resumo geral intacto
+  garantirBlocoResumoGeral(sheet);
+  SpreadsheetApp.flush();
+
+  return { sucesso: true, itemRemovido: itemRemovido, linhaExcluida: linhaAlvo };
+}
+
+/**
+ * Atualiza campos de uma linha existente na planilha (Tipo, Modalidade, Forma de Pagamento)
+ */
+function atualizarLinhaNaPlanilha(aba, linha, subitem, tipo, modalidade, formaPagamento) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(aba);
+  if (!sheet) return { sucesso: false, erro: "Aba não encontrada" };
+
+  const lastRow = sheet.getLastRow();
+  let linhaAlvo = parseInt(linha, 10);
+
+  if (subitem && linhaAlvo >= 2 && linhaAlvo <= lastRow) {
+    const valF = sheet.getRange(linhaAlvo, 6).getValue();
+    if (String(valF).trim().toLowerCase() !== String(subitem).trim().toLowerCase()) {
+      linhaAlvo = -1;
+    }
+  }
+
+  if (linhaAlvo < 2 && subitem) {
+    const colF = sheet.getRange(2, 6, lastRow - 1, 1).getValues();
+    for (let i = 0; i < colF.length; i++) {
+      if (String(colF[i][0]).trim().toLowerCase() === String(subitem).trim().toLowerCase()) {
+        linhaAlvo = i + 2;
+        break;
+      }
+    }
+  }
+
+  if (linhaAlvo < 2 || linhaAlvo > lastRow) {
+    return { sucesso: false, erro: "Linha não encontrada" };
+  }
+
+  // Coluna D: Tipo, Coluna E: Modalidade, Coluna H: Forma de Pagamento
+  if (tipo) sheet.getRange(linhaAlvo, 4).setValue(tipo);
+  if (modalidade) sheet.getRange(linhaAlvo, 5).setValue(modalidade);
+  if (formaPagamento) sheet.getRange(linhaAlvo, 8).setValue(formaPagamento);
+
+  SpreadsheetApp.flush();
+  return { sucesso: true, linha: linhaAlvo };
 }
 
 /**
@@ -412,6 +521,18 @@ function doPost(e) {
       return HtmlService.createHtmlOutput("OK");
     }
 
+    // Ação: Excluir linha pelo dashboard
+    if (postData.acao === "excluirLinha") {
+      const res = excluirLinhaDaPlanilha(postData.aba, postData.linha, postData.subitem);
+      return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Ação: Atualizar campos da linha pelo dashboard
+    if (postData.acao === "atualizarLinha") {
+      const res = atualizarLinhaNaPlanilha(postData.aba, postData.linha, postData.subitem, postData.tipo, postData.modalidade, postData.formaPagamento);
+      return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+    }
+
     // Se for lançamento via API web normal
     const res = registrarLancamentoNaPlanilha({
       dataObj: new Date(postData.data),
@@ -426,10 +547,31 @@ function doPost(e) {
 
     return ContentService.createTextOutput(JSON.stringify({ sucesso: true, ...res })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
-    return HtmlService.createHtmlOutput("OK");
+    return ContentService.createTextOutput(JSON.stringify({ sucesso: false, erro: err.message })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({ status: "Bot ativo" })).setMimeType(ContentService.MimeType.JSON);
+  try {
+    const p = (e && e.parameter) || {};
+    const acao = p.acao;
+
+    if (acao === "excluirLinha") {
+      const res = excluirLinhaDaPlanilha(p.aba, p.linha, p.subitem);
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (acao === "atualizarLinha") {
+      const res = atualizarLinhaNaPlanilha(p.aba, p.linha, p.subitem, p.tipo, p.modalidade, p.formaPagamento);
+      return ContentService.createTextOutput(JSON.stringify(res))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ status: "Bot ativo", timestamp: new Date() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "erro", mensagem: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
