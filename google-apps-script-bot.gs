@@ -84,11 +84,18 @@ function processarMensagemTelegram(conteudo) {
     return;
   }
 
-  // Comando para desfazer / remover o último lançamento
-  if (texto === "/desfazer" || texto === "/cancelar" || texto.toLowerCase() === "desfazer" || texto.toLowerCase() === "cancelar") {
+  // Comando para desfazer / remover lançamento (aceita /desfazer, desfazer, apagar, cancelar com ou sem texto depois)
+  if (
+    texto.startsWith("/desfazer") ||
+    texto.startsWith("desfazer") ||
+    texto.startsWith("/cancelar") ||
+    texto.startsWith("cancelar") ||
+    texto.startsWith("/apagar") ||
+    texto.startsWith("apagar")
+  ) {
     const resRemover = removerUltimoLancamentoDaPlanilha();
     if (resRemover.sucesso) {
-      enviarMensagemTelegram(chatId, `🗑️ *Último lançamento desfeito com sucesso!*\nLinha removida: _${resRemover.itemRemovido}_`);
+      enviarMensagemTelegram(chatId, `🗑️ *Lançamento removido com sucesso!*\n\nItem apagado da planilha:\n_${resRemover.itemRemovido}_`);
     } else {
       enviarMensagemTelegram(chatId, `⚠️ ${resRemover.mensagem}`);
     }
