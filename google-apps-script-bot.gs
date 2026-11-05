@@ -77,26 +77,54 @@ function processarMensagemTelegram(conteudo) {
       `📌 *Como lançar:*\n` +
       `• \`Saída 30 refrigerante PIX\`\n` +
       `• \`Entrada 150 oferta culto dinheiro\`\n\n` +
-      `🗑️ *Como cancelar/remover:*\n` +
-      `• Envie \`/desfazer\` ou \`/cancelar\` para apagar o último lançamento que você fez!\n\n` +
+      `🗑️ *Como remover da planilha (Mês Atual):*\n` +
+      `• \`exclua a linha 3\` (apaga a linha 3 do mês atual)\n` +
+      `• \`/desfazer\` (apaga o último lançamento feito)\n\n` +
       `📸 *Comprovante:* Envie a foto com a legenda acima!\n\n` +
       `📊 *Dashboard:* https://octaviosoares.github.io/evangelismo-madureira/`
     );
     return;
   }
 
-  // Comando para desfazer / remover lançamento (aceita /desfazer, desfazer, apagar, cancelar com ou sem texto depois)
+  // 1. Comando específico para excluir uma linha informada do mês atual (ex: "exclua a linha 3", "apagar linha 3", "/excluir 3")
+  const matchExcluirLinha =
+    texto.match(/(?:exclua|excluir|apagar|apague|deletar|delete|\/excluir|\/apagar|\/remover)\s+(?:a\s+)?linha\s*(\d+)/i) ||
+    texto.match(/^(?:\/excluir|\/apagar|\/remover)\s+(\d+)$/i);
+
+  if (matchExcluirLinha) {
+    const numLinha = parseInt(matchExcluirLinha[1], 10);
+    const dataAtual = new Date();
+    const nomeAbaAtual = `${MESES_NOMES[dataAtual.getMonth()]} ${dataAtual.getFullYear()}`;
+
+    const resRemover = excluirLinhaDaPlanilha(nomeAbaAtual, numLinha, null, ADMIN_PIN);
+    if (resRemover.sucesso) {
+      const saldoFmt = (resRemover.novoSaldo || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      enviarMensagemTelegram(
+        chatId,
+        `🗑️ *Linha ${numLinha} removida com sucesso!*\n\n` +
+        `📅 *Aba:* ${nomeAbaAtual}\n` +
+        `📋 *Item apagado:* _${resRemover.itemRemovido}_\n` +
+        `🏦 *Novo Saldo Total do Caixa:* *${saldoFmt}*\n\n` +
+        `📊 [Abrir Dashboard](https://octaviosoares.github.io/evangelismo-madureira/)`
+      );
+    } else {
+      enviarMensagemTelegram(chatId, `⚠️ ${resRemover.erro || "Não foi possível remover a linha."}`);
+    }
+    return;
+  }
+
+  // 2. Comando geral para desfazer / remover o ÚLTIMO lançamento (ex: "/desfazer", "desfazer", "/cancelar")
   if (
-    texto.startsWith("/desfazer") ||
-    texto.startsWith("desfazer") ||
-    texto.startsWith("/cancelar") ||
-    texto.startsWith("cancelar") ||
-    texto.startsWith("/apagar") ||
-    texto.startsWith("apagar")
+    texto === "/desfazer" ||
+    texto === "desfazer" ||
+    texto === "/cancelar" ||
+    texto === "cancelar" ||
+    texto === "/apagar" ||
+    texto === "apagar"
   ) {
     const resRemover = removerUltimoLancamentoDaPlanilha();
     if (resRemover.sucesso) {
-      enviarMensagemTelegram(chatId, `🗑️ *Lançamento removido com sucesso!*\n\nItem apagado da planilha:\n_${resRemover.itemRemovido}_`);
+      enviarMensagemTelegram(chatId, `🗑️ *Último lançamento removido com sucesso!*\n\nItem apagado da planilha:\n_${resRemover.itemRemovido}_`);
     } else {
       enviarMensagemTelegram(chatId, `⚠️ ${resRemover.mensagem}`);
     }
@@ -317,7 +345,7 @@ function garantirBlocoResumoGeral(sheet) {
 }
 
 /**
- * Exclui uma linha específica da planilha (solicitado pelo Dashboard com PIN)
+ * Exclui uma linha específica da planilha (solicitado pelo Telegram ou Dashboard com PIN)
  */
 function excluirLinhaDaPlanilha(aba, linha, subitem, pin) {
   if (String(pin).trim() !== ADMIN_PIN) {
@@ -328,12 +356,16 @@ function excluirLinhaDaPlanilha(aba, linha, subitem, pin) {
   const dataObj = new Date();
   const nomeAba = aba || `${MESES_NOMES[dataObj.getMonth()]} ${dataObj.getFullYear()}`;
   const sheet = ss.getSheetByName(nomeAba);
-  if (!sheet) return { sucesso: false, erro: "Aba não encontrada" };
+  if (!sheet) return { sucesso: false, erro: `Aba "${nomeAba}" não encontrada.` };
 
   const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return { sucesso: false, erro: "Planilha vazia" };
+  if (lastRow <= 1) return { sucesso: false, erro: `A aba "${nomeAba}" está vazia.` };
 
   let linhaAlvo = parseInt(linha, 10);
+
+  if (linhaAlvo <= 1) {
+    return { sucesso: false, erro: "Não é permitido excluir a linha 1 (cabeçalho da planilha)." };
+  }
 
   // Se informou subitem, valida se a linha indicada ainda corresponde
   if (subitem && linhaAlvo >= 2 && linhaAlvo <= lastRow) {
@@ -355,11 +387,11 @@ function excluirLinhaDaPlanilha(aba, linha, subitem, pin) {
   }
 
   if (linhaAlvo < 2 || linhaAlvo > lastRow) {
-    return { sucesso: false, erro: "Registro não encontrado para exclusão" };
+    return { sucesso: false, erro: `A linha ${linha} não existe ou está vazia na aba ${nomeAba}.` };
   }
 
   const valores = sheet.getRange(linhaAlvo, 1, 1, 10).getValues()[0];
-  const itemRemovido = `${valores[3]} R$ ${valores[6]} (${valores[5]})`;
+  const itemRemovido = `${valores[3] || "Item"} R$ ${valores[6] || "0,00"} (${valores[5] || "Geral"})`;
 
   // Apaga a linha na planilha
   sheet.deleteRow(linhaAlvo);
@@ -368,7 +400,9 @@ function excluirLinhaDaPlanilha(aba, linha, subitem, pin) {
   garantirBlocoResumoGeral(sheet);
   SpreadsheetApp.flush();
 
-  return { sucesso: true, itemRemovido: itemRemovido, linhaExcluida: linhaAlvo };
+  const novoSaldo = calcularSaldoGeral(ss);
+
+  return { sucesso: true, itemRemovido: itemRemovido, linhaExcluida: linhaAlvo, aba: nomeAba, novoSaldo: novoSaldo };
 }
 
 /**
@@ -465,6 +499,15 @@ function registrarLancamentoNaPlanilha(item) {
   SpreadsheetApp.flush();
 
   // Calcula o Saldo Total Geral de todas as abas
+  const saldoGeral = calcularSaldoGeral(ss);
+
+  return { aba: nomeAba, semana: semana, linha: targetRow, saldoGeral: saldoGeral };
+}
+
+/**
+ * Calcula o saldo total consolidado de todas as abas da planilha
+ */
+function calcularSaldoGeral(ss) {
   let saldoGeral = 0;
   ss.getSheets().forEach((s) => {
     const last = s.getLastRow();
@@ -477,8 +520,7 @@ function registrarLancamentoNaPlanilha(item) {
       });
     }
   });
-
-  return { aba: nomeAba, semana: semana, linha: targetRow, saldoGeral: saldoGeral };
+  return saldoGeral;
 }
 
 function calcularSemanaOficial(dateObj) {
