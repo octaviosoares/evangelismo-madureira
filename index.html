@@ -1620,8 +1620,12 @@
         }
 
         function atualizarGraficos(listaFiltrada, listaBaseModalidades) {
+            // Usa as transações com valor maior que zero para os gráficos
+            const listaComValor = listaFiltrada.filter((t) => Number(t.valor) > 0);
+            const listaBaseGrafico = listaComValor.length > 0 ? listaComValor : listaFiltrada;
+
             const mapaDatas = new Map();
-            const ordenadasCrono = [...listaFiltrada].sort((a, b) => (a.data || "").localeCompare(b.data || ""));
+            const ordenadasCrono = [...listaBaseGrafico].sort((a, b) => (a.data || "").localeCompare(b.data || ""));
             ordenadasCrono.forEach((t) => {
                 const chave = t.dataBR || t.data;
                 if (!mapaDatas.has(chave)) {
@@ -1709,7 +1713,7 @@
                     maintainAspectRatio: false,
                     animation: false,
                     plugins: {
-                        legend: { labels: { color: "#9ca3af", font: { size: 11 } } }
+                        legend: { labels: { color: "#9ca3af", font: { size: 11 } } },
                     },
                     scales: {
                         x: { ticks: { color: "#9ca3af" }, grid: { color: "#1f293d" } },
@@ -1719,9 +1723,15 @@
             });
 
             // Gráfico 3: Evolução do Saldo do Caixa (Linha do Tempo com Saldo Acumulado)
+            // Se tiver apenas 1 ponto no período, adiciona o ponto inicial base (R$ 0,00) para traçar a linha perfeitamente
             let saldoCorrido = 0;
             const labelsSaldo = [];
             const dadosSaldoEvolucao = [];
+
+            if (ordenadasCrono.length === 1) {
+                labelsSaldo.push("Início");
+                dadosSaldoEvolucao.push(0);
+            }
 
             ordenadasCrono.forEach((t) => {
                 const label = t.dataBR || t.data;
@@ -1735,7 +1745,6 @@
             const ctxSaldo = document.getElementById("chartSaldoEvolucao").getContext("2d");
             if (chartSaldoEvolucaoInstance) chartSaldoEvolucaoInstance.destroy();
 
-            // Gradiente para a área debaixo da linha de saldo
             const gradientSaldo = ctxSaldo.createLinearGradient(0, 0, 0, 240);
             gradientSaldo.addColorStop(0, "rgba(59, 130, 246, 0.45)");
             gradientSaldo.addColorStop(1, "rgba(59, 130, 246, 0.0)");
@@ -1743,7 +1752,7 @@
             chartSaldoEvolucaoInstance = new Chart(ctxSaldo, {
                 type: "line",
                 data: {
-                    labels: labelsSaldo.length ? labelsSaldo : ["Sem dados"],
+                    labels: labelsSaldo.length ? labelsSaldo : ["Sem lançamentos"],
                     datasets: [
                         {
                             label: "Saldo Acumulado (R$)",
@@ -1755,8 +1764,8 @@
                             tension: 0.35,
                             pointBackgroundColor: "#60a5fa",
                             pointBorderColor: "#ffffff",
-                            pointRadius: 5,
-                            pointHoverRadius: 7
+                            pointRadius: 6,
+                            pointHoverRadius: 8
                         }
                     ]
                 },
@@ -1788,6 +1797,7 @@
                     }
                 }
             });
+        }
         }
 
         function abrirModalLancamento() {
