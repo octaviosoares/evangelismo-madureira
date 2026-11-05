@@ -133,6 +133,7 @@ function processarMensagemTelegram(conteudo) {
 
   const iconeTipo = parsed.tipo === "Entrada" ? "🟢" : "🔴";
   const valorFmt = parsed.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const saldoAtualFmt = res.saldoGeral.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   enviarMensagemTelegram(
     chatId,
@@ -143,6 +144,7 @@ function processarMensagemTelegram(conteudo) {
     `💰 *Valor:* ${valorFmt}\n` +
     `💳 *Forma:* ${parsed.formaPagamento}\n` +
     `📅 *Aba:* ${res.aba} • ${res.semana}\n` +
+    `🏦 *Saldo Total do Caixa:* *${saldoAtualFmt}*\n` +
     (linkComprovante ? `📎 *Comprovante:* [Ver no Drive](${linkComprovante})\n` : "") +
     `\n📊 [Abrir Dashboard](https://octaviosoares.github.io/evangelismo-madureira/)`
   );
@@ -311,7 +313,31 @@ function registrarLancamentoNaPlanilha(item) {
   ]]);
   sheet.getRange(targetRow, 7).setNumberFormat("R$ #,##0.00");
 
-  return { aba: nomeAba, semana: semana, linha: targetRow };
+  // Garante bloco de RESUMO GERAL na aba
+  sheet.getRange("L1:M4").setValues([
+    ["RESUMO GERAL", ""],
+    ["Total Entradas", '=SUMIF(D2:D; "Entrada"; G2:G)'],
+    ["Total Saídas", '=SUMIF(D2:D; "Saída"; G2:G)'],
+    ["SALDO ATUAL", '=M2-M3']
+  ]);
+
+  SpreadsheetApp.flush();
+
+  // Calcula o Saldo Total Geral de todas as abas
+  let saldoGeral = 0;
+  ss.getSheets().forEach((s) => {
+    const last = s.getLastRow();
+    if (last > 1) {
+      const vals = s.getRange(2, 4, last - 1, 4).getValues();
+      vals.forEach((r) => {
+        const v = typeof r[3] === "number" ? r[3] : parseFloat(String(r[3]).replace(/[R$\s.]/g, "").replace(",", ".")) || 0;
+        if (r[0] === "Entrada") saldoGeral += v;
+        else if (r[0] === "Saída") saldoGeral -= v;
+      });
+    }
+  });
+
+  return { aba: nomeAba, semana: semana, linha: targetRow, saldoGeral: saldoGeral };
 }
 
 function calcularSemanaOficial(dateObj) {
