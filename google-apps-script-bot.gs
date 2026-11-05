@@ -121,7 +121,7 @@ function processarMensagemTelegram(conteudo) {
 
   // Grava na planilha
   const res = registrarLancamentoNaPlanilha({
-    dataObj: new Date(),
+    dataObj: parsed.dataObj || new Date(),
     tipo: parsed.tipo,
     modalidade: parsed.modalidade,
     subitem: parsed.subitem,
@@ -151,12 +151,12 @@ function processarMensagemTelegram(conteudo) {
 }
 
 /**
- * Inteligência simples para entender a frase digitada
+ * Inteligência para entender a frase digitada
  */
 function interpretarTextoLancamento(texto) {
   const t = texto.toLowerCase();
 
-  // Tipo: Entrada ou Saída
+  // 1. Tipo: Entrada ou Saída
   let tipo = "Saída";
   if (t.includes("entrada") || t.includes("oferta") || t.includes("receb") || t.includes("deposito") || t.includes("gazofilacio")) {
     tipo = "Entrada";
@@ -165,37 +165,59 @@ function interpretarTextoLancamento(texto) {
     tipo = "Saída";
   }
 
-  // Extrair valor monetário (ex: 30, 30.50, 30,50, R$ 30)
-  const matchValor = texto.match(/(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)/i);
-  let valor = 0;
-  if (matchValor) {
-    valor = parseFloat(matchValor[1].replace(",", "."));
+  // 2. Extrair Data se informada (ex: "dia 05/11", "05/11/2026", "dia 5")
+  let dataObj = new Date();
+  const matchDataCompleta = texto.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if (matchDataCompleta) {
+    const dia = parseInt(matchDataCompleta[1], 10);
+    const mes = parseInt(matchDataCompleta[2], 10) - 1;
+    const ano = matchDataCompleta[3] ? parseInt(matchDataCompleta[3].length === 2 ? "20" + matchDataCompleta[3] : matchDataCompleta[3], 10) : dataObj.getFullYear();
+    dataObj = new Date(ano, mes, dia);
   }
 
-  // Modalidade
+  // 3. Extrair Valor Monetário
+  // Prioriza se vier com "valor:", "valor", "r$", ou pega o número decimal/moeda
+  let valor = 0;
+  const matchComRotulo = texto.match(/(?:valor\s*:?|r\$\s*)\s*(\d+(?:[.,]\d{1,2})?)/i);
+  if (matchComRotulo) {
+    valor = parseFloat(matchComRotulo[1].replace(",", "."));
+  } else {
+    // Procura números que NÃO sejam a data já encontrada
+    const textoSemData = texto.replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, "").replace(/\bdia\s+\d{1,2}\b/gi, "");
+    const matchNumero = textoSemData.match(/(\d+(?:[.,]\d{1,2})?)/);
+    if (matchNumero) {
+      valor = parseFloat(matchNumero[1].replace(",", "."));
+    }
+  }
+
+  // 4. Modalidade
   let modalidade = "Evangelismo";
   if (t.includes("gazofilacio") || t.includes("gazofilácio") || t.includes("culto")) modalidade = "Gazofilácio";
   else if (t.includes("bonificacao") || t.includes("bonificação") || t.includes("ajuda") || t.includes("apoio")) modalidade = "Bonificação";
   else if (t.includes("proposito") || t.includes("propósito") || t.includes("campanha") || t.includes("oracao") || t.includes("oração")) modalidade = "Propósito";
-  else if (t.includes("evangelismo") || t.includes("folheto") || t.includes("uber") || t.includes("lanche") || t.includes("refrigerante") || t.includes("agua")) modalidade = "Evangelismo";
+  else if (t.includes("evangelismo") || t.includes("folheto") || t.includes("uber") || t.includes("lanche") || t.includes("refrigerante") || t.includes("agua") || t.includes("ovo")) modalidade = "Evangelismo";
 
-  // Forma de pagamento (Padrão: Dinheiro, a menos que mencione pix, cartao, etc.)
+  // 5. Forma de pagamento (Padrão: Dinheiro)
   let formaPagamento = "Dinheiro";
   if (t.includes("pix")) formaPagamento = "PIX";
   else if (t.includes("debito") || t.includes("débito")) formaPagamento = "Cartão de Débito";
   else if (t.includes("credito") || t.includes("crédito")) formaPagamento = "Cartão de Crédito";
   else if (t.includes("transferencia") || t.includes("transferência")) formaPagamento = "Transferência";
 
-  // Descrição / Subitem
+  // 6. Subitem limpo e legível
   let limpo = texto
-    .replace(/(entrada|saida|saída)/gi, "")
-    .replace(/(?:r\$\s*)?\d+(?:[.,]\d{1,2})?/gi, "")
-    .replace(/(pix|dinheiro|cartao|cartão|debito|débito|credito|crédito)/gi, "")
-    .replace(/(bonificacao|bonificação|evangelismo|gazofilacio|gazofilácio|proposito|propósito)/gi, "")
+    .replace(/(?:saída|saida|entrada)\s*:?/gi, "")
+    .replace(/(?:valor\s*:?|r\$\s*)\s*\d+(?:[.,]\d{1,2})?/gi, "")
+    .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, "")
+    .replace(/\bno\s+dia\b/gi, "")
+    .replace(/\bdia\b/gi, "")
+    .replace(/\b(pix|dinheiro|cartao|cartão|debito|débito|credito|crédito)\b/gi, "")
+    .replace(/\b(bonificacao|bonificação|evangelismo|gazofilacio|gazofilácio|proposito|propósito)\b/gi, "")
+    .replace(/[;,\.]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   let subitem = limpo || (tipo === "Entrada" ? "Oferta Culto" : "Despesa Diversa");
-  // Capitaliza
   subitem = subitem.charAt(0).toUpperCase() + subitem.slice(1);
 
   return {
@@ -204,6 +226,7 @@ function interpretarTextoLancamento(texto) {
     subitem,
     valor,
     formaPagamento,
+    dataObj,
     descricao: texto
   };
 }
