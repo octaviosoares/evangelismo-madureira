@@ -290,12 +290,26 @@ function calcularSemanaOficial(dateObj) {
  */
 function doPost(e) {
   try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return HtmlService.createHtmlOutput("OK");
+    }
+
     const postData = JSON.parse(e.postData.contents);
 
     // Se a requisição veio do Telegram
-    if (postData.update_id && postData.message) {
-      processarMensagemTelegram(postData);
-      return ContentService.createTextOutput("OK");
+    if (postData.update_id) {
+      // Evita reprocessamento se o Telegram reenviar o mesmo update_id
+      const cache = CacheService.getScriptCache();
+      const updateKey = "tg_update_" + postData.update_id;
+      if (cache.get(updateKey)) {
+        return HtmlService.createHtmlOutput("OK");
+      }
+      cache.put(updateKey, "processado", 300); // guarda por 5 min
+
+      if (postData.message) {
+        processarMensagemTelegram(postData);
+      }
+      return HtmlService.createHtmlOutput("OK");
     }
 
     // Se for lançamento via API web normal
@@ -312,7 +326,7 @@ function doPost(e) {
 
     return ContentService.createTextOutput(JSON.stringify({ sucesso: true, ...res })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ sucesso: false, erro: err.message })).setMimeType(ContentService.MimeType.JSON);
+    return HtmlService.createHtmlOutput("OK");
   }
 }
 
